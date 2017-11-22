@@ -43,22 +43,28 @@ static void verbose_system(const char *command)
 
 /* Configure a local IPv4 address and netmask for the device */
 static void net_add_ipv4_address(const char *dev_name,
-				 const struct ip_address *ip,
+				 const struct ip_address *local,
+				 const struct ip_address *remote,
 				 int prefix_len)
 {
 	char *command = NULL;
-	char ip_string[ADDR_STR_LEN];
+	char local_string[ADDR_STR_LEN], remote_string[ADDR_STR_LEN];
 
-	ip_to_string(ip, ip_string);
+	ip_to_string(local, local_string);
+	ip_to_string(remote, remote_string);
 
 #ifdef linux
 	asprintf(&command, "ip addr add %s/%d dev %s > /dev/null 2>&1",
-		 ip_string, prefix_len, dev_name);
+		 local_string, prefix_len, dev_name);
 #endif
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 	asprintf(&command, "/sbin/ifconfig %s %s/%d alias",
-		 dev_name, ip_string, prefix_len);
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+		 dev_name, local_string, prefix_len);
+#elif defined(__MACH__)
+	/* tuntap is a point-to-point interface on Darwin */
+	asprintf(&command, "/sbin/ifconfig %s %s/%d %s alias",
+		 dev_name, local_string, prefix_len, remote_string);
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 	verbose_system(command);
 	free(command);
@@ -66,24 +72,28 @@ static void net_add_ipv4_address(const char *dev_name,
 
 /* Configure a local IPv6 address and prefix length for the device */
 static void net_add_ipv6_address(const char *dev_name,
-				 const struct ip_address *ip,
+				 const struct ip_address *local,
+				 const struct ip_address *remote,
 				 int prefix_len)
 {
 	char *command = NULL;
-	char ip_string[ADDR_STR_LEN];
+	char local_string[ADDR_STR_LEN], remote_string[ADDR_STR_LEN];
 
-	ip_to_string(ip, ip_string);
+	ip_to_string(local, local_string);
+	ip_to_string(remote, remote_string);
 
 #ifdef linux
-
 	asprintf(&command, "ip addr add %s/%d dev %s > /dev/null 2>&1",
-		 ip_string, prefix_len, dev_name);
+		 local_string, prefix_len, dev_name);
 #endif
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
-
 	asprintf(&command, "/sbin/ifconfig %s inet6 %s/%d",
-		 dev_name, ip_string, prefix_len);
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+		 dev_name, local_string, prefix_len);
+#elif defined(__MACH__)
+	/* tuntap is a point-to-point interface on Darwin */
+	asprintf(&command, "/sbin/ifconfig %s inet6 %s/%d %s alias",
+		 dev_name, local_string, prefix_len, remote_string);
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 	verbose_system(command);
 	free(command);
@@ -97,21 +107,22 @@ static void net_add_ipv6_address(const char *dev_name,
 	if (!strstr(dev_name, "tun"))
 		sleep(2);
 #endif
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	sleep(3);
 #endif
 }
 
 void net_add_dev_address(const char *dev_name,
-			 const struct ip_address *ip,
+			 const struct ip_address *local,
+			 const struct ip_address *remote,
 			 int prefix_len)
 {
-	switch (ip->address_family) {
+	switch (local->address_family) {
 	case AF_INET:
-		net_add_ipv4_address(dev_name, ip, prefix_len);
+		net_add_ipv4_address(dev_name, local, remote, prefix_len);
 		break;
 	case AF_INET6:
-		net_add_ipv6_address(dev_name, ip, prefix_len);
+		net_add_ipv6_address(dev_name, local, remote, prefix_len);
 		break;
 	default:
 		assert(!"bad family");
@@ -132,12 +143,12 @@ void net_del_dev_address(const char *dev_name,
 	asprintf(&command, "ip addr del %s/%d dev %s > /dev/null 2>&1",
 		 ip_string, prefix_len, dev_name);
 #endif
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	asprintf(&command, "/sbin/ifconfig %s %s %s/%d -alias",
 		 dev_name,
 		 ip->address_family ==  AF_INET6 ? "inet6" : "",
 		 ip_string, prefix_len);
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 	verbose_system(command);
 	free(command);
@@ -152,12 +163,13 @@ void net_del_dev_address(const char *dev_name,
  * and add it on the newly-requested device.
  */
 void net_setup_dev_address(const char *dev_name,
-			   const struct ip_address *ip,
+			   const struct ip_address *local,
+			   const struct ip_address *remote,
 			   int prefix_len)
 {
 	char cur_dev_name[IFNAMSIZ];
 
-	bool found = get_ip_device(ip, cur_dev_name);
+	bool found = get_ip_device(local, cur_dev_name);
 
 	DEBUGP("net_setup_dev_address: found: %d\n", found);
 
@@ -167,6 +179,6 @@ void net_setup_dev_address(const char *dev_name,
 	}
 
 	if (found)
-		net_del_dev_address(cur_dev_name, ip, prefix_len);
-	net_add_dev_address(dev_name, ip, prefix_len);
+		net_del_dev_address(cur_dev_name, local, prefix_len);
+	net_add_dev_address(dev_name, local, remote, prefix_len);
 }

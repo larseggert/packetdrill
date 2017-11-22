@@ -55,6 +55,12 @@
 #include "tcp.h"
 #include "tun.h"
 
+#ifdef __MACH__
+/* See http://sourceforge.net/p/tuntaposx/code/ci/master/tree/tuntap/ */
+#define TUNSIFHEAD  _IOW('t', 96, int)
+#define TUNGIFHEAD  _IOR('t', 97, int)
+#endif
+
 /* Internal private state for the netdev for purely local tests. */
 struct local_netdev {
 	struct netdev netdev;		/* "inherit" from netdev */
@@ -141,15 +147,19 @@ static void create_device(struct config *config, struct local_netdev *netdev)
 	netdev->name = strdup(TUN_DEV);
 #endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
 
-#if defined(__FreeBSD__) ||  defined(__NetBSD__)
-	/* On FreeBSD and NetBSD we need to explicitly ask to be able
+#ifdef __MACH__
+	netdev->name = strdup(TUN_DEV);
+#endif
+
+#if defined(__FreeBSD__) ||  defined(__NetBSD__) || defined(__MACH__)
+	/* On FreeBSD, NetBSD and Darwin we need to explicitly ask to be able
 	 * to prepend the address family when injecting tun packets.
 	 * OpenBSD presumes we are doing this, even without the ioctl.
 	 */
 	const int header = 1;
 	if (ioctl(netdev->tun_fd, TUNSIFHEAD, &header, sizeof(header)) < 0)
 		die_perror("TUNSIFHEAD");
-#endif /* defined(__FreeBSD__) ||  defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) ||  defined(__NetBSD__) || defined(__MACH__) */
 
 	DEBUGP("tun name: '%s'\n", netdev->name);
 
@@ -235,7 +245,7 @@ static void route_traffic_to_device(struct config *config,
 		 netdev->name,
 		 config->live_gateway_ip_string);
 #endif
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	if (config->wire_protocol == AF_INET) {
 		asprintf(&route_command,
 			 "route delete %s > /dev/null 2>&1 ; "
@@ -248,7 +258,7 @@ static void route_traffic_to_device(struct config *config,
 			 "route delete -inet6 %s > /dev/null 2>&1 ; "
 #if defined(__FreeBSD__)
 			 "route add -inet6 %s -interface tun0 %s > /dev/null",
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
+#elif defined(__OpenBSD__) || defined(__NetBSD__)  || defined(__MACH__)
 			 "route add -inet6 %s %s > /dev/null",
 #endif
 			 config->live_remote_prefix_string,
@@ -257,7 +267,7 @@ static void route_traffic_to_device(struct config *config,
 	} else {
 		assert(!"bad wire protocol");
 	}
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 	int result = system(route_command);
 	if ((result == -1) || (WEXITSTATUS(result) != 0)) {
 		die("error executing route command '%s'\n",
@@ -281,6 +291,7 @@ struct netdev *local_netdev_new(struct config *config)
 
 	net_setup_dev_address(netdev->name,
 			      &config->live_local_ip,
+			      &config->live_remote_ip,
 			      config->live_prefix_len);
 
 	route_traffic_to_device(config, netdev);
@@ -307,7 +318,7 @@ static void local_netdev_free(struct netdev *a_netdev)
 	free(netdev);
 }
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 /* According to `man 4 tun` on OpenBSD: "Each packet read or written
  * is prefixed with a tunnel header consisting of a 4-byte network
  * byte order integer containing the address family in the case of
@@ -328,7 +339,7 @@ static void bsd_tun_write(struct local_netdev *netdev,
 	if (writev(netdev->tun_fd, vector, ARRAY_SIZE(vector)) < 0)
 		die_perror("BSD tun write()");
 }
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 #ifdef linux
 #include <linux/virtio_net.h>
@@ -357,7 +368,9 @@ static void linux_tun_write(struct local_netdev *netdev,
 static int local_netdev_send(struct netdev *a_netdev,
 			     struct packet *packet)
 {
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	struct local_netdev *netdev = to_local_netdev(a_netdev);
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 	assert(packet->ip_bytes > 0);
 	/* We do IPv4 and IPv6 */
@@ -367,9 +380,9 @@ static int local_netdev_send(struct netdev *a_netdev,
 
 	DEBUGP("local_netdev_send\n");
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	bsd_tun_write(netdev, packet);
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 #ifdef linux
 	linux_tun_write(netdev, packet);

@@ -121,6 +121,7 @@ struct netdev *wire_client_netdev_new(struct config *config)
 	/* Add the client live local IP to our NIC, so we can send/receive */
 	net_setup_dev_address(netdev->name,
 			      &config->live_local_ip,
+			      &config->live_remote_ip,
 			      config->live_prefix_len);
 
 	route_traffic_to_wire_server(config, netdev);

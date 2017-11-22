@@ -92,5 +92,22 @@
 
 #endif  /* __NetBSD__ */
 
+/* ------------------------- MacOS X --------------------- */
+
+#if defined(__MACH__)
+
+#define SOL_TCP IPPROTO_TCP
+
+#define USE_LIBPCAP             1
+#define TUN_PATH                "/dev/tun0"
+#define TUN_DEV                 "tun0"
+
+#define HAVE_TCP_INFO           0 /* TODO: export struct tcp_connection_info */
+#define HAVE_FMEMOPEN           1
+#include "open_memstream.h"
+
+#define __always_inline __attribute__((__always_inline__))
+
+#endif  /* __MACH__ */
 
 #endif /* __PLATFORMS_H__ */

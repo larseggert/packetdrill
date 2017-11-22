@@ -407,7 +407,7 @@ void set_scheduling_priority(void)
 	if (num_cpus <= 1)
 		return;
 
-#if !defined(__OpenBSD__)
+#if !defined(__OpenBSD__) && !defined(__MACH__)
 	/* Chose a real-time policy, but use SCHED_RR instead of
 	 * SCHED_FIFO, so that we round-robin among real-time threads
 	 * of the same priority. In practice this shouldn't matter,
@@ -434,8 +434,10 @@ void set_scheduling_priority(void)
  */
 void lock_memory(void)
 {
+#ifndef __MACH__
 	if (mlockall(MCL_CURRENT | MCL_FUTURE))
 		die_perror("lockall(MCL_CURRENT | MCL_FUTURE)");
+#endif
 }
 
 /* Wait for and return the wall time at which we should start the

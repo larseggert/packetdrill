@@ -39,6 +39,10 @@
 #include <pcap/pcap.h>
 #elif defined(__OpenBSD__) || defined(__NetBSD__)
 #include <pcap.h>
+#elif defined(__MACH__)
+#define PCAP_DONT_INCLUDE_PCAP_BPF_H
+#include <net/bpf.h>
+#include <pcap.h>
 #endif
 
 #include "ethernet.h"
@@ -252,7 +256,7 @@ int packet_socket_receive(struct packet_socket *psock,
 	       (u32)pkt_header->ts.tv_sec,
 	       (u32)pkt_header->ts.tv_usec);
 
-#if defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	packet->time_usecs = timeval_to_usecs(&pkt_header->ts);
 #elif defined(__OpenBSD__)
 	packet->time_usecs = bpf_timeval_to_usecs(&pkt_header->ts);

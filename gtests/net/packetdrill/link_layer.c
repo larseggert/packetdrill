@@ -66,13 +66,13 @@ void get_hw_address(const char *name, struct ether_addr *hw_address)
 
 #else
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 #include <net/if_types.h>
 #include <net/if_dl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <ifaddrs.h>
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) */
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 
 void get_hw_address(const char *name, struct ether_addr *hw_address)
 {

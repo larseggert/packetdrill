@@ -34,7 +34,8 @@
  * to the given device.
  */
 extern void net_add_dev_address(const char *dev_name,
-				const struct ip_address *ip,
+				const struct ip_address *local,
+				const struct ip_address *remote,
 				int prefix_len);
 
 /* Delete the given IP address, with the given subnet/prefix length,
@@ -50,7 +51,8 @@ extern void net_del_dev_address(const char *dev_name,
  * add it to the given network device.
  */
 extern void net_setup_dev_address(const char *dev_name,
-				  const struct ip_address *ip,
+				  const struct ip_address *local,
+				  const struct ip_address *remote,
 				  int prefix_len);
 
 #endif /* __NET_UTILS_H__ */

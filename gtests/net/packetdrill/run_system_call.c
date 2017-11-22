@@ -40,7 +40,9 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#ifndef __MACH__
 #include <sys/sendfile.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 #include "logging.h"
@@ -56,10 +58,10 @@ static pid_t gettid(void)
 #ifdef linux
 	return syscall(__NR_gettid);
 #endif
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__)
 	/* TODO(ncardwell): Implement me. XXX */
 	return 0;
-#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)*/
+#endif /* defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__MACH__) */
 }
 
 /* Read a whole file into the given buffer of the given length. */
@@ -1763,7 +1765,12 @@ static int syscall_sendfile(struct state *state, struct syscall_spec *syscall,
 
 	begin_syscall(state, syscall);
 
+#ifdef __MACH__
+	off_t len = count;
+	result = sendfile(live_outfd, live_infd, live_offset, &len, 0, 0);
+#else
 	result = sendfile(live_outfd, live_infd, &live_offset, count);
+#endif
 
 	status = end_syscall(state, syscall, CHECK_EXACT, result, error);
 
@@ -1885,7 +1892,7 @@ static int yield(void)
 #elif defined(__FreeBSD__) || defined(__OpenBSD__)
 	pthread_yield();
 	return 0;
-#elif defined(__NetBSD__)
+#elif defined(__NetBSD__) || defined(__MACH__)
 	return sched_yield();
 #endif  /* defined(__NetBSD__) */
 }
