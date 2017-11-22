@@ -1,3 +1,2 @@
 packetdrill-ext-libs := -lpthread -lpcap
-LDFLAGS :=
 include Makefile.common
